@@ -3,8 +3,6 @@
   "version": "1.0.0",
   "description": "Financial research agent powered by LiteParse",
   "scripts": {
-    "ingest": "tsx scripts/ingest.ts",
-    "chat": "tsx scripts/chat.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
