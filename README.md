@@ -141,7 +141,7 @@ The matching is fuzzy to account for the LLM's output variability. It tries exac
 └── store.json                       # Parsed document data (generated)
 ```
 
-## Key Design Decisions
+## Design Aspects
 
 - **No vector database** — Uses simple keyword/regex search over extracted text. For financial documents with precise terminology, keyword search is surprisingly effective and avoids the complexity (and hallucination risk) of embedding-based retrieval.
 - **JSON store** — Parsed documents are stored as a flat JSON file. Simple, inspectable, no infrastructure required. Works well for demo-scale data.
