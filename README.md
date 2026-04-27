@@ -4,7 +4,11 @@ A demo application that shows how to build an AI-powered financial research agen
 
 Financial due diligence is one of the most document-heavy workflows in finance. Analysts spend up to 70% of their time on manual data extraction. This means time spent transcribing PDFs into spreadsheets, mapping GL accounts, and reconciling trial balances.
 
-This project demonstrates how to use LiteParse to extract structured text and layout data from financial PDFs, then give an LLM agent the tools to search and read that data on demand. The result is an agent that can answer questions like `"What was Apple's revenue growth from 2023 to 2024?"` with exact numbers cited back to specific pages in the source filings.
+This project demonstrates:
+- Basic `LiteParse` usage for PDF text extraction with layout data
+- Building a simple document store with keyword search
+- Implementing an LLM agent with tools for document retrieval
+- A citation system that highlights exact source text in the original PDF using the bounding box coordinates from LiteParse
 
 ## Architecture
 
@@ -111,7 +115,7 @@ The UI then:
 3. Computes the bounding box by mapping the matched character range back to the original text items with their coordinates
 4. Renders the PDF page via `/api/screenshot` and draws a highlight overlay at the exact location
 
-The matching is fuzzy to account for the LLM's output variability. It tries exact normalized matching first, then alphanumeric-only matching, then falls back to longest-token matching. This handles the inevitable small formatting differences between what the LLM outputs and what's actually in the PDF.
+The matching is fuzzy to account for the LLM's output variability. It tries exact normalized matching first, then alphanumeric-only matching, then falls back to longest-token matching. This processing chain handles the small formatting differences between what the LLM outputs and what's actually in the PDF.
 
 ## Project Structure
 
@@ -134,9 +138,6 @@ The matching is fuzzy to account for the LLM's output variability. It tries exac
 │   ├── ingest.ts                    # LiteParse PDF parsing
 │   ├── store.ts                     # JSON document store + search
 │   └── tools.ts                     # AI agent tool definitions
-├── scripts/
-│   ├── ingest.ts                    # Batch PDF ingestion script
-│   └── chat.ts                      # CLI chat script
 └── store.json                       # Parsed document data (generated)
 ```
 
