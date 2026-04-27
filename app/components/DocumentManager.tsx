@@ -219,7 +219,7 @@ export function DocumentManager() {
               }}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                 tab === key
-                  ? "border-b-2 border-indigo-500 text-indigo-400"
+                  ? "border-b-2 border-brand-purple text-brand-purple"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
@@ -286,7 +286,7 @@ export function DocumentManager() {
                   </div>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="mt-2 rounded-md bg-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30"
+                    className="mt-2 rounded-md bg-brand-purple/20 px-3 py-1.5 text-xs font-medium text-brand-purple transition-colors hover:bg-brand-purple/30"
                   >
                     Browse Files
                   </button>
@@ -314,7 +314,7 @@ export function DocumentManager() {
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === "Enter" && searchEdgar()}
                   placeholder="Ticker (e.g. MSFT)"
-                  className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-indigo-500"
+                  className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-brand-purple"
                 />
                 <select
                   value={formType}
@@ -328,7 +328,7 @@ export function DocumentManager() {
                 <button
                   onClick={searchEdgar}
                   disabled={edgarLoading || !ticker.trim()}
-                  className="rounded-md bg-indigo-500/20 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30 disabled:opacity-50"
+                  className="rounded-md bg-brand-purple/20 px-3 py-1.5 text-xs font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
                 >
                   {edgarLoading ? "..." : "Search"}
                 </button>
@@ -349,7 +349,7 @@ export function DocumentManager() {
                             setSelectedFilings(new Set(filings.map((f) => f.accessionNumber)));
                           }
                         }}
-                        className="accent-indigo-500"
+                        className="accent-brand-purple"
                       />
                       Select all
                     </label>
@@ -357,7 +357,7 @@ export function DocumentManager() {
                       <button
                         onClick={downloadSelected}
                         disabled={downloadingFilings.size > 0}
-                        className="rounded-md bg-indigo-500/20 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30 disabled:opacity-50"
+                        className="rounded-md bg-brand-purple/20 px-2 py-1 text-[10px] font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
                       >
                         {downloadingFilings.size > 0
                           ? `Downloading...`
@@ -379,7 +379,7 @@ export function DocumentManager() {
                           checked={selectedFilings.has(f.accessionNumber)}
                           onChange={() => toggleSelection(f.accessionNumber)}
                           disabled={isDownloading || isDownloaded}
-                          className="accent-indigo-500"
+                          className="accent-brand-purple"
                         />
                         <div className="flex-1">
                           <div className="text-xs font-medium">
@@ -398,7 +398,7 @@ export function DocumentManager() {
                           <button
                             onClick={() => downloadFiling(f)}
                             disabled={isDownloading || loading}
-                            className="rounded-md bg-indigo-500/20 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30 disabled:opacity-50"
+                            className="rounded-md bg-brand-purple/20 px-2 py-1 text-[10px] font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
                           >
                             {isDownloading ? "..." : "Add"}
                           </button>

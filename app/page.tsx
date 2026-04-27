@@ -69,11 +69,16 @@ export default function Home() {
     <div className="flex h-screen">
       {/* Chat Panel */}
       <div className="flex w-1/2 min-w-[420px] flex-col border-r border-zinc-800">
-        <div className="border-b border-zinc-800 bg-zinc-900 px-5 py-4">
+        <div className="border-b border-zinc-800 bg-zinc-900 px-5 py-4 bg-gradient-to-r from-brand-purple/5 via-brand-pink/5 to-brand-orange/5">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="flex items-center gap-2 text-base font-semibold">
-                <span className="text-indigo-400">&#9670;</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/llamaindex-icon.svg"
+                  alt="LlamaIndex"
+                  className="h-6"
+                />
                 Financial Research Agent
               </h1>
               <p className="mt-0.5 text-xs text-zinc-500">

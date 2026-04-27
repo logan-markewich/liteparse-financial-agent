@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+@theme {
+  /* LlamaIndex brand colors */
+  --color-brand-blue: #37D7FA;
+  --color-brand-purple: #4B72FE;
+  --color-brand-pink: #FF8DF2;
+  --color-brand-orange: #FF8705;
+}

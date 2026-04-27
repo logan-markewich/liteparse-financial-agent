@@ -53,7 +53,7 @@ export function CitationViewer({
                 onClick={() => onSelectPage(i)}
                 className={`rounded px-2 py-0.5 text-[10px] font-mono transition-colors ${
                   i === activePageIdx
-                    ? "bg-indigo-500/20 text-indigo-400"
+                    ? "bg-brand-purple/20 text-brand-purple"
                     : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
                 }`}
               >

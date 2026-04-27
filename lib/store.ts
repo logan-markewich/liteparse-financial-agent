@@ -5,6 +5,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { searchItems } from "@llamaindex/liteparse";
 
 const STORE_PATH = path.resolve(process.cwd(), "store.json");
 export const DOCS_DIR = path.resolve(process.cwd(), "..", "docs");
@@ -88,12 +89,26 @@ export function removeDocument(filename: string): boolean {
  * Supports plain keyword search (space-separated terms) or regex patterns
  * (when `useRegex` is true).
  */
+/**
+ * Convert a simple glob pattern (with * and ?) into a RegExp.
+ */
+function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  const re = escaped.replace(/\*/g, ".*").replace(/\?/g, ".");
+  return new RegExp(`^${re}$`, "i");
+}
+
 export function searchDocuments(
   query: string,
   maxResults: number = 5,
   useRegex: boolean = false,
+  fileGlob?: string,
 ): SearchResult[] {
-  const docs = loadStore();
+  let docs = loadStore();
+  if (fileGlob) {
+    const globRe = globToRegExp(fileGlob);
+    docs = docs.filter((d) => globRe.test(d.filename));
+  }
   const results: Array<SearchResult & { score: number }> = [];
 
   if (useRegex) {
@@ -247,9 +262,26 @@ function bboxFromRange(
   );
   if (overlapping.length === 0) return null;
 
-  const minX = Math.min(...overlapping.map((s) => s.item.x));
+  // For each overlapping item, estimate the sub-region that actually
+  // corresponds to the matched characters (proportional to char count).
+  const rects = overlapping.map((s) => {
+    const itemLen = s.endOffset - s.startOffset;
+    if (itemLen <= 0) return { x: s.item.x, w: s.item.width };
+
+    const overlapStart = Math.max(matchStart, s.startOffset);
+    const overlapEnd = Math.min(matchEnd, s.endOffset);
+    const fracStart = (overlapStart - s.startOffset) / itemLen;
+    const fracEnd = (overlapEnd - s.startOffset) / itemLen;
+
+    return {
+      x: s.item.x + s.item.width * fracStart,
+      w: s.item.width * (fracEnd - fracStart),
+    };
+  });
+
+  const minX = Math.min(...rects.map((r) => r.x));
+  const maxX = Math.max(...rects.map((r) => r.x + r.w));
   const minY = Math.min(...overlapping.map((s) => s.item.y));
-  const maxX = Math.max(...overlapping.map((s) => s.item.x + s.item.width));
   const maxH = Math.max(...overlapping.map((s) => s.item.height));
 
   return {
@@ -284,61 +316,65 @@ export function findTextLocation(
   const page = getPage(filename, pageNum);
   if (!page || page.textItems.length === 0) return [];
 
-  const { text: rawText, spans } = buildTextMap(page.textItems);
+  // --- Strategy 1: use LiteParse's searchItems for proper cross-line matching ---
+  // searchItems handles item concatenation with spatial awareness and returns
+  // merged bounding boxes that span multiple text items correctly.
+  const matches = searchItems(page.textItems, { phrase, caseSensitive: false });
+  if (matches.length > 0) {
+    return matches.slice(0, 3).map((m) => ({
+      text: m.text,
+      x: m.x,
+      y: m.y,
+      width: m.width,
+      height: m.height,
+    }));
+  }
 
-  // --- Strategy 1: exact normalized match on concatenated textItems ---
-  const normText = normalize(rawText);
+  // Fuzzy strategies only for longer, multi-word phrases where exact
+  // matching might fail due to punctuation differences.
+  // Short phrases (numbers like "$209,586", percentages like "4 %") must
+  // match exactly — fuzzy matching these produces false positives.
   const normPhrase = normalize(phrase);
-  if (normPhrase.length > 0) {
-    const hits = findAllOccurrences(normText, normPhrase);
-    if (hits.length > 0) {
-      // Map normalized offsets back to raw offsets.
-      // Build a mapping: normText[ni] came from rawText[rawIdx[ni]]
-      const rawIdx = buildNormToRawMap(rawText);
-      const results: TextLocation[] = [];
-      for (const hit of hits.slice(0, 3)) {
-        const rawStart = rawIdx[hit];
-        const rawEnd = rawIdx[hit + normPhrase.length - 1] + 1;
-        const loc = bboxFromRange(spans, rawStart, rawEnd);
-        if (loc) results.push(loc);
-      }
-      if (results.length > 0) return results;
-    }
-  }
+  const MIN_FUZZY_PHRASE_LENGTH = 15;
 
-  // --- Strategy 2: alphanumeric-only match (handles $, %, commas, dashes) ---
-  const alnumText = alphanumOnly(rawText);
-  const alnumPhrase = alphanumOnly(phrase);
-  if (alnumPhrase.length > 0) {
-    const alnumRawMap = buildAlnumToRawMap(rawText);
-    const hits = findAllOccurrences(alnumText, alnumPhrase);
-    if (hits.length > 0) {
-      const results: TextLocation[] = [];
-      for (const hit of hits.slice(0, 3)) {
-        const rawStart = alnumRawMap[hit];
-        const rawEnd = alnumRawMap[hit + alnumPhrase.length - 1] + 1;
-        const loc = bboxFromRange(spans, rawStart, rawEnd);
-        if (loc) results.push(loc);
-      }
-      if (results.length > 0) return results;
-    }
-  }
+  if (normPhrase.length >= MIN_FUZZY_PHRASE_LENGTH) {
+    const { text: rawText, spans } = buildTextMap(page.textItems);
+    const normText = normalize(rawText);
 
-  // --- Strategy 3: try the longest significant token (for partial matches) ---
-  // e.g. "$416,161 million" → try "416,161" alone
-  const tokens = phrase.match(/[\d][,.\d]+[\d]|[a-zA-Z]{4,}/g);
-  if (tokens) {
-    // Sort by length descending, try the longest first
-    tokens.sort((a, b) => b.length - a.length);
-    for (const token of tokens.slice(0, 3)) {
-      const tokenNorm = normalize(token);
-      const hits = findAllOccurrences(normText, tokenNorm);
+    // --- Strategy 2: alphanumeric-only match (handles punctuation differences) ---
+    const alnumPhrase = alphanumOnly(phrase);
+    if (alnumPhrase.length >= 6) {
+      const alnumText = alphanumOnly(rawText);
+      const alnumRawMap = buildAlnumToRawMap(rawText);
+      const hits = findAllOccurrences(alnumText, alnumPhrase);
       if (hits.length > 0) {
-        const rawIdx = buildNormToRawMap(rawText);
-        const rawStart = rawIdx[hits[0]];
-        const rawEnd = rawIdx[hits[0] + tokenNorm.length - 1] + 1;
-        const loc = bboxFromRange(spans, rawStart, rawEnd);
-        if (loc) return [loc];
+        const results: TextLocation[] = [];
+        for (const hit of hits.slice(0, 3)) {
+          const rawStart = alnumRawMap[hit];
+          const rawEnd = alnumRawMap[hit + alnumPhrase.length - 1] + 1;
+          const loc = bboxFromRange(spans, rawStart, rawEnd);
+          if (loc) results.push(loc);
+        }
+        if (results.length > 0) return results;
+      }
+    }
+
+    // --- Strategy 3: try the longest significant token (for partial matches) ---
+    // e.g. "$416,161 million" → try "416,161" alone
+    const tokens = phrase.match(/[\d][,.\d]+[\d]|[a-zA-Z]{4,}/g);
+    if (tokens) {
+      tokens.sort((a, b) => b.length - a.length);
+      for (const token of tokens.slice(0, 3)) {
+        if (token.length < 4) continue;
+        const tokenNorm = normalize(token);
+        const hits = findAllOccurrences(normText, tokenNorm);
+        if (hits.length > 0) {
+          const rawIdx = buildNormToRawMap(rawText);
+          const rawStart = rawIdx[hits[0]];
+          const rawEnd = rawIdx[hits[0] + tokenNorm.length - 1] + 1;
+          const loc = bboxFromRange(spans, rawStart, rawEnd);
+          if (loc) return [loc];
+        }
       }
     }
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -89,11 +89,12 @@ export function ChatMessages({
         </div>
       )}
 
-      {messages.map((message) => (
+      {messages.map((message, mi) => (
         <MessageBubble
           key={message.id}
           message={message}
           onCitationFocus={onCitationFocus}
+          isStreaming={isLoading && mi === messages.length - 1}
         />
       ))}
 
@@ -115,14 +116,16 @@ export function ChatMessages({
 function MessageBubble({
   message,
   onCitationFocus,
+  isStreaming,
 }: {
   message: UIMessage;
   onCitationFocus: (highlight: Highlight) => void;
+  isStreaming: boolean;
 }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-xl rounded-br-sm border border-indigo-500/30 bg-indigo-500/15 px-3.5 py-2.5 text-sm">
+        <div className="max-w-[80%] rounded-xl rounded-br-sm border border-brand-purple/30 bg-brand-purple/15 px-3.5 py-2.5 text-sm">
           {message.parts
             .filter((p) => p.type === "text")
             .map((p, i) => (
@@ -143,6 +146,7 @@ function MessageBubble({
               key={i}
               text={part.text}
               onCitationFocus={onCitationFocus}
+              isStreaming={isStreaming}
             />
           );
         }
@@ -154,14 +158,16 @@ function MessageBubble({
         if (part.type.startsWith("tool-")) {
           const toolPart = part as {
             type: string;
-            toolName: string;
+            toolName?: string;
             state: string;
             input?: Record<string, unknown>;
           };
+          // Tool name is either in toolName (dynamic tools) or encoded in the type as "tool-<name>"
+          const toolName = toolPart.toolName || part.type.replace(/^tool-/, "");
           return (
             <ToolCallPart
               key={i}
-              toolName={toolPart.toolName}
+              toolName={toolName}
               state={toolPart.state}
               input={toolPart.input}
             />
@@ -181,9 +187,11 @@ function MessageBubble({
 function TextPartWithCites({
   text,
   onCitationFocus,
+  isStreaming,
 }: {
   text: string;
   onCitationFocus: (highlight: Highlight) => void;
+  isStreaming: boolean;
 }) {
   const { processed, cites } = useMemo(
     () => replaceCitesWithLinks(text),
@@ -203,35 +211,10 @@ function TextPartWithCites({
           const cite = cites[idx];
           if (!cite) return <>{children}</>;
 
-          const handleFocus = () => {
-            onCitationFocus({
-              filename: cite.file,
-              pageNumber: cite.page,
-              phrase: cite.phrase,
-            });
-          };
-
           return (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleFocus();
-              }}
-              onMouseEnter={handleFocus}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleFocus();
-              }}
-              className="mx-0.5 inline-flex cursor-pointer items-baseline gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-400 transition-colors hover:bg-indigo-500/20"
-              title={`${cite.file} p.${cite.page}`}
-            >
-              <span className="text-indigo-300">{children}</span>
-              <span className="text-[9px] text-zinc-500">
-                p.{cite.page}
-              </span>
-            </span>
+            <CiteBadge cite={cite} onFocus={onCitationFocus} isStreaming={isStreaming}>
+              {children}
+            </CiteBadge>
           );
         }
 
@@ -240,7 +223,7 @@ function TextPartWithCites({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-indigo-400 underline"
+            className="text-brand-purple underline"
           >
             {children}
           </a>
@@ -256,6 +239,91 @@ function TextPartWithCites({
         {processed}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/**
+ * A citation badge that verifies itself against the cite API.
+ * Shows a verified (brand-colored) or unverified (yellow warning) style.
+ */
+function CiteBadge({
+  cite,
+  onFocus,
+  children,
+  isStreaming,
+}: {
+  cite: ParsedCite;
+  onFocus: (highlight: Highlight) => void;
+  children: React.ReactNode;
+  isStreaming: boolean;
+}) {
+  const [verified, setVerified] = useState<boolean | null>(null);
+
+  // Only verify once streaming is complete so we don't fire on partial text
+  useEffect(() => {
+    if (isStreaming) return;
+    let cancelled = false;
+    fetch("/api/cite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: cite.file,
+        pageNumber: cite.page,
+        phrase: cite.phrase,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setVerified(data.locations?.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setVerified(false);
+      });
+    return () => { cancelled = true; };
+  }, [isStreaming, cite.file, cite.page, cite.phrase]);
+
+  const handleFocus = useCallback(() => {
+    onFocus({
+      filename: cite.file,
+      pageNumber: cite.page,
+      phrase: cite.phrase,
+    });
+  }, [cite, onFocus]);
+
+  // During streaming or before verification completes, show default style
+  const isUnverified = !isStreaming && verified === false;
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleFocus();
+      }}
+      onMouseEnter={handleFocus}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") handleFocus();
+      }}
+      className={`mx-0.5 inline-flex cursor-pointer items-baseline gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold transition-colors ${
+        isUnverified
+          ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+          : "border-brand-purple/30 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20"
+      }`}
+      title={
+        isUnverified
+          ? `Could not verify in ${cite.file} p.${cite.page}`
+          : `${cite.file} p.${cite.page}`
+      }
+    >
+      <span className={isUnverified ? "text-yellow-300" : "text-brand-blue"}>
+        {children}
+      </span>
+      <span className="text-[9px] text-zinc-500">
+        p.{cite.page}{isUnverified && " ?"}
+      </span>
+    </span>
   );
 }
 
@@ -288,7 +356,7 @@ function ToolCallPart({
       <span className={isRunning ? "animate-spin" : ""}>
         {isRunning ? "\u2699" : "\u2713"}
       </span>
-      <span className="text-indigo-400">{toolName}</span>
+      <span className="text-brand-purple">{toolName}</span>
       {argsStr && <span className="truncate">({argsStr})</span>}
     </div>
   );

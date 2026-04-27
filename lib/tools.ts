@@ -39,10 +39,16 @@ export const tools = {
           .describe(
             "If true, treat query as a regular expression (JavaScript regex syntax, case-insensitive)",
           ),
+        file_glob: z
+          .string()
+          .optional()
+          .describe(
+            "Optional glob pattern to filter which documents are searched (e.g. 'apple-*', '*.pdf', '*2024*'). If omitted, all documents are searched.",
+          ),
       }),
     ),
-    execute: async ({ query, max_results, use_regex }) => {
-      const results = searchDocuments(query, max_results, use_regex);
+    execute: async ({ query, max_results, use_regex, file_glob }) => {
+      const results = searchDocuments(query, max_results, use_regex, file_glob);
       if (results.length === 0) {
         return { message: "No results found for: " + query, results: [] };
       }
