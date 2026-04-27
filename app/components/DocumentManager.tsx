@@ -28,6 +28,9 @@ export function DocumentManager() {
   const [formType, setFormType] = useState("10-K,10-Q");
   const [filings, setFilings] = useState<EdgarFiling[]>([]);
   const [edgarLoading, setEdgarLoading] = useState(false);
+  const [selectedFilings, setSelectedFilings] = useState<Set<string>>(new Set());
+  const [downloadingFilings, setDownloadingFilings] = useState<Set<string>>(new Set());
+  const [downloadedFilings, setDownloadedFilings] = useState<Set<string>>(new Set());
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -79,6 +82,8 @@ export function DocumentManager() {
     if (!ticker.trim()) return;
     setEdgarLoading(true);
     setFilings([]);
+    setSelectedFilings(new Set());
+    setDownloadedFilings(new Set());
     setMessage(null);
 
     try {
@@ -100,9 +105,7 @@ export function DocumentManager() {
   };
 
   const downloadFiling = async (filing: EdgarFiling) => {
-    setLoading(true);
-    setMessage(null);
-
+    setDownloadingFilings((prev) => new Set(prev).add(filing.accessionNumber));
     try {
       const res = await fetch("/api/edgar", {
         method: "POST",
@@ -117,15 +120,48 @@ export function DocumentManager() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage(`Added ${data.filename} (${data.pageCount} pages)`);
+        setDownloadedFilings((prev) => new Set(prev).add(filing.accessionNumber));
         fetchDocuments();
+        return data;
       } else {
-        setMessage(data.error || "Download failed");
+        setMessage(data.error || `Failed to download ${filing.form} — ${filing.filingDate}`);
       }
     } catch {
-      setMessage("Download failed");
+      setMessage(`Failed to download ${filing.form} — ${filing.filingDate}`);
     } finally {
-      setLoading(false);
+      setDownloadingFilings((prev) => {
+        const next = new Set(prev);
+        next.delete(filing.accessionNumber);
+        return next;
+      });
+    }
+    return null;
+  };
+
+  const toggleSelection = (accessionNumber: string) => {
+    setSelectedFilings((prev) => {
+      const next = new Set(prev);
+      if (next.has(accessionNumber)) next.delete(accessionNumber);
+      else next.add(accessionNumber);
+      return next;
+    });
+  };
+
+  const downloadSelected = async () => {
+    if (selectedFilings.size === 0) return;
+    setMessage(null);
+    const toDownload = filings.filter((f) => selectedFilings.has(f.accessionNumber));
+    let added = 0;
+
+    // Process sequentially to respect SEC rate limits
+    for (const filing of toDownload) {
+      const result = await downloadFiling(filing);
+      if (result) added++;
+    }
+
+    setSelectedFilings(new Set());
+    if (added > 0) {
+      setMessage(`Added ${added} filing${added > 1 ? "s" : ""}`);
     }
   };
 
@@ -300,31 +336,76 @@ export function DocumentManager() {
 
               {filings.length > 0 && (
                 <div className="space-y-1.5">
-                  {filings.map((f) => (
-                    <div
-                      key={f.accessionNumber}
-                      className="flex items-center justify-between rounded-md border border-zinc-800 px-3 py-2"
-                    >
-                      <div>
-                        <div className="text-xs font-medium">
-                          {f.form}{" "}
-                          <span className="font-normal text-zinc-400">
-                            — {f.filingDate}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-zinc-500">
-                          {f.primaryDocDescription || f.primaryDocument}
-                        </div>
-                      </div>
+                  {/* Bulk actions */}
+                  <div className="flex items-center justify-between pb-1">
+                    <label className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilings.size === filings.length && filings.length > 0}
+                        onChange={() => {
+                          if (selectedFilings.size === filings.length) {
+                            setSelectedFilings(new Set());
+                          } else {
+                            setSelectedFilings(new Set(filings.map((f) => f.accessionNumber)));
+                          }
+                        }}
+                        className="accent-indigo-500"
+                      />
+                      Select all
+                    </label>
+                    {selectedFilings.size > 0 && (
                       <button
-                        onClick={() => downloadFiling(f)}
-                        disabled={loading}
+                        onClick={downloadSelected}
+                        disabled={downloadingFilings.size > 0}
                         className="rounded-md bg-indigo-500/20 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30 disabled:opacity-50"
                       >
-                        {loading ? "..." : "Add"}
+                        {downloadingFilings.size > 0
+                          ? `Downloading...`
+                          : `Add ${selectedFilings.size} filing${selectedFilings.size > 1 ? "s" : ""}`}
                       </button>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+
+                  {filings.map((f) => {
+                    const isDownloading = downloadingFilings.has(f.accessionNumber);
+                    const isDownloaded = downloadedFilings.has(f.accessionNumber);
+                    return (
+                      <div
+                        key={f.accessionNumber}
+                        className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFilings.has(f.accessionNumber)}
+                          onChange={() => toggleSelection(f.accessionNumber)}
+                          disabled={isDownloading || isDownloaded}
+                          className="accent-indigo-500"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-medium">
+                            {f.form}{" "}
+                            <span className="font-normal text-zinc-400">
+                              — {f.filingDate}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-zinc-500">
+                            {f.primaryDocDescription || f.primaryDocument}
+                          </div>
+                        </div>
+                        {isDownloaded ? (
+                          <span className="text-[10px] text-green-400">Added</span>
+                        ) : (
+                          <button
+                            onClick={() => downloadFiling(f)}
+                            disabled={isDownloading || loading}
+                            className="rounded-md bg-indigo-500/20 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/30 disabled:opacity-50"
+                          >
+                            {isDownloading ? "..." : "Add"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -110,8 +110,8 @@ export function searchDocuments(
         if (matches.length === 0) continue;
 
         const firstIdx = matches[0].index ?? 0;
-        const snippetStart = Math.max(0, firstIdx - 200);
-        const snippetEnd = Math.min(page.text.length, firstIdx + 600);
+        const snippetStart = Math.max(0, firstIdx - 1000);
+        const snippetEnd = Math.min(page.text.length, firstIdx + 1000);
         const snippet =
           (snippetStart > 0 ? "..." : "") +
           page.text.slice(snippetStart, snippetEnd).trim() +
@@ -139,8 +139,8 @@ export function searchDocuments(
             .map((t) => textLower.indexOf(t))
             .filter((i) => i >= 0),
         );
-        const snippetStart = Math.max(0, firstTermIdx - 200);
-        const snippetEnd = Math.min(page.text.length, firstTermIdx + 600);
+        const snippetStart = Math.max(0, firstTermIdx - 1000);
+        const snippetEnd = Math.min(page.text.length, firstTermIdx + 1000);
         const snippet =
           (snippetStart > 0 ? "..." : "") +
           page.text.slice(snippetStart, snippetEnd).trim() +
