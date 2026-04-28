@@ -230,7 +230,7 @@ function TextPartWithCites({
         );
       },
     }),
-    [cites, onCitationFocus],
+    [cites, onCitationFocus, isStreaming],
   );
 
   return (

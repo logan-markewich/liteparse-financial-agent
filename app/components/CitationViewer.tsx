@@ -166,8 +166,8 @@ function PageRenderer({
         });
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled && data.locations?.length > 0) {
-          setLocations(data.locations);
+        if (!cancelled) {
+          setLocations(data.locations?.length > 0 ? data.locations : []);
         }
       } catch {
         // Silently fail
