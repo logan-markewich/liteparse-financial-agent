@@ -1,5 +1,7 @@
 # Building a Financial Due Diligence Agent with LiteParse
 
+<img width="1877" height="867" alt="image" src="https://github.com/user-attachments/assets/852b2df8-eaa1-4425-8568-8eef035d83bf" />
+
 A demo application that shows how to build an AI-powered financial research agent using [LiteParse](https://www.npmjs.com/package/@llamaindex/liteparse) for document parsing. The agent can ingest SEC filings, search across them, and answer questions with precise, citation-backed responses, made possible by LiteParse's text extraction and bounding box data.
 
 Financial due diligence is one of the most document-heavy workflows in finance. Analysts spend up to 70% of their time on manual data extraction. This means time spent transcribing PDFs into spreadsheets, mapping GL accounts, and reconciling trial balances.
