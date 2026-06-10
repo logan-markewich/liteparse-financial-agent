@@ -5,6 +5,7 @@ import { ChatMessages } from "./components/ChatMessages";
 import { ChatInput } from "./components/ChatInput";
 import { CitationViewer } from "./components/CitationViewer";
 import { DocumentManager } from "./components/DocumentManager";
+import { SlidePanel } from "./components/SlidePanel";
 import { useCallback, useState } from "react";
 
 /** A unique page referenced by at least one citation */
@@ -25,6 +26,7 @@ export default function Home() {
   const [pages, setPages] = useState<CitedPage[]>([]);
   const [activePageIdx, setActivePageIdx] = useState<number | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
+  const [slidesOpen, setSlidesOpen] = useState(false);
 
   /** Called by ChatMessages when <cite> tags are parsed — registers unique pages */
   const addCitedPage = useCallback((page: CitedPage) => {
@@ -69,7 +71,7 @@ export default function Home() {
     <div className="flex h-screen">
       {/* Chat Panel */}
       <div className="flex w-1/2 min-w-[420px] flex-col border-r border-zinc-800">
-        <div className="border-b border-zinc-800 bg-zinc-900 px-5 py-4 bg-gradient-to-r from-brand-purple/5 via-brand-pink/5 to-brand-orange/5">
+        <div className="border-b border-zinc-800 bg-zinc-950 px-5 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="flex items-center gap-2 text-base font-semibold">
@@ -85,7 +87,19 @@ export default function Home() {
                 Powered by LiteParse &middot; SEC Filings
               </p>
             </div>
-            <DocumentManager />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSlidesOpen((v) => !v)}
+                className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  slidesOpen
+                    ? "border-zinc-500 bg-zinc-800 text-zinc-100"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300"
+                }`}
+              >
+                Slides
+              </button>
+              <DocumentManager />
+            </div>
           </div>
         </div>
 
@@ -111,6 +125,14 @@ export default function Home() {
           onSelectPage={selectPage}
         />
       </div>
+
+      {/* Presenter Slides Panel */}
+      {slidesOpen && (
+        <SlidePanel
+          onClose={() => setSlidesOpen(false)}
+          onSendPrompt={(text) => sendMessage({ text })}
+        />
+      )}
     </div>
   );
 }

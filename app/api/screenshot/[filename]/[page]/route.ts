@@ -1,6 +1,7 @@
 import { LiteParse } from "@llamaindex/liteparse";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
+import { DOCS_DIR } from "@/lib/store";
 
 let screenshotParser: LiteParse | null = null;
 
@@ -23,12 +24,11 @@ export async function GET(
   }
 
   const safeName = path.basename(filename);
-  const DOCS_DIR = path.resolve(process.cwd(), "../docs");
   const filePath = path.join(DOCS_DIR, safeName);
 
   try {
     const parser = getParser();
-    const screenshots = await parser.screenshot(filePath, [pageNum], true);
+    const screenshots = await parser.screenshot(filePath, [pageNum]);
 
     if (screenshots.length === 0) {
       return NextResponse.json({ error: "Page not found" }, { status: 404 });

@@ -2,11 +2,22 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { addDocument, DOCS_DIR } from "@/lib/store";
-import { ingestPdf } from "@/lib/ingest";
+import { ingestPdf, type ParserType } from "@/lib/ingest";
 import puppeteer from "puppeteer";
 
 const USER_AGENT = "LiteParse-Demo demo@liteparse.dev";
 const SEC_HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
+
+// SEC rate-limits aggressively, so all EDGAR downloads are serialized through
+// this queue. Parsing happens outside the queue, so concurrent requests parse
+// in parallel while the next download proceeds.
+let secQueue: Promise<unknown> = Promise.resolve();
+
+function withSecQueue<T>(fn: () => Promise<T>): Promise<T> {
+  const run = secQueue.then(fn, fn);
+  secQueue = run.catch(() => {});
+  return run;
+}
 
 interface Filing {
   accessionNumber: string;
@@ -56,8 +67,10 @@ export async function GET(req: Request) {
  * Download and ingest a specific filing.
  */
 export async function POST(req: Request) {
-  const { ticker, accessionNumber, primaryDocument, form, filingDate } =
+  const { ticker, accessionNumber, primaryDocument, form, filingDate, parser } =
     await req.json();
+  const parserType: ParserType =
+    parser === "llamaparse" ? "llamaparse" : "liteparse";
 
   if (!ticker || !accessionNumber || !primaryDocument) {
     return NextResponse.json(
@@ -67,53 +80,18 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cik = await resolveCik(ticker.toUpperCase());
-    if (!cik) {
+    const downloaded = await withSecQueue(() =>
+      downloadFiling(ticker, accessionNumber, primaryDocument),
+    );
+    if (!downloaded) {
       return NextResponse.json(
         { error: `Ticker "${ticker}" not found` },
         { status: 404 },
       );
     }
 
-    // Build the filing URL
-    const accessionClean = accessionNumber.replace(/-/g, "");
-    const docUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionClean}/${primaryDocument}`;
-
-    // Download the document
-    const res = await fetch(docUrl, {
-      headers: { "User-Agent": USER_AGENT },
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to download filing: ${res.status}`);
-    }
-
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const contentType = res.headers.get("content-type") || "";
-    const isPdf =
-      contentType.includes("pdf") ||
-      primaryDocument.toLowerCase().endsWith(".pdf");
-
-    const filename = `${ticker.toLowerCase()}-${form?.toLowerCase() || "filing"}-${filingDate || accessionNumber}`;
-
-    if (isPdf) {
-      return await saveAndIngest(filename + ".pdf", buffer);
-    }
-
-    // Not a PDF — try to find a PDF version in the filing index
-    const pdfUrl = await findPdfInFiling(cik, accessionNumber);
-    if (pdfUrl) {
-      const pdfRes = await fetch(pdfUrl, {
-        headers: { "User-Agent": USER_AGENT },
-      });
-      if (pdfRes.ok) {
-        const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
-        return await saveAndIngest(filename + ".pdf", pdfBuffer);
-      }
-    }
-
-    // Fallback: convert HTML to PDF via Puppeteer, then parse with LiteParse
-    const pdfBuffer = await htmlToPdf(docUrl);
-    return await saveAndIngest(filename + ".pdf", pdfBuffer);
+    const filename = `${ticker.toLowerCase()}-${form?.toLowerCase() || "filing"}-${filingDate || accessionNumber}.pdf`;
+    return await saveAndIngest(filename, downloaded, parserType);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Download failed" },
@@ -122,16 +100,60 @@ export async function POST(req: Request) {
   }
 }
 
+/** Download a filing as a PDF buffer. Returns null if the ticker is unknown. */
+async function downloadFiling(
+  ticker: string,
+  accessionNumber: string,
+  primaryDocument: string,
+): Promise<Buffer | null> {
+  const cik = await resolveCik(ticker.toUpperCase());
+  if (!cik) return null;
+
+  const accessionClean = accessionNumber.replace(/-/g, "");
+  const docUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionClean}/${primaryDocument}`;
+
+  const res = await fetch(docUrl, {
+    headers: { "User-Agent": USER_AGENT },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download filing: ${res.status}`);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  const isPdf =
+    contentType.includes("pdf") ||
+    primaryDocument.toLowerCase().endsWith(".pdf");
+
+  if (isPdf) {
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  // Not a PDF — try to find a PDF version in the filing index
+  const pdfUrl = await findPdfInFiling(cik, accessionNumber);
+  if (pdfUrl) {
+    const pdfRes = await fetch(pdfUrl, {
+      headers: { "User-Agent": USER_AGENT },
+    });
+    if (pdfRes.ok) {
+      return Buffer.from(await pdfRes.arrayBuffer());
+    }
+  }
+
+  // Fallback: convert HTML to PDF via Puppeteer.
+  return htmlToPdf(docUrl);
+}
+
 async function saveAndIngest(
   filename: string,
   buffer: Buffer,
+  parserType: ParserType,
 ): Promise<NextResponse> {
   fs.mkdirSync(DOCS_DIR, { recursive: true });
   const filePath = path.join(DOCS_DIR, filename);
   fs.writeFileSync(filePath, buffer);
 
   try {
-    const doc = await ingestPdf(filePath, filename);
+    const doc = await ingestPdf(filePath, filename, parserType);
     addDocument(doc);
     return NextResponse.json({
       filename: doc.filename,

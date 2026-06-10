@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { addDocument, DOCS_DIR } from "@/lib/store";
-import { ingestPdf } from "@/lib/ingest";
+import { ingestPdf, type ParserType } from "@/lib/ingest";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
+  const parser: ParserType =
+    formData.get("parser") === "llamaparse" ? "llamaparse" : "liteparse";
 
   if (!file || !file.name.endsWith(".pdf")) {
     return NextResponse.json(
@@ -25,8 +27,7 @@ export async function POST(req: Request) {
   fs.writeFileSync(filePath, buffer);
 
   try {
-    // Parse with LiteParse
-    const doc = await ingestPdf(filePath, filename);
+    const doc = await ingestPdf(filePath, filename, parser);
     addDocument(doc);
 
     return NextResponse.json({

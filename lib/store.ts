@@ -8,7 +8,7 @@ import path from "path";
 import { searchItems } from "@llamaindex/liteparse";
 
 const STORE_PATH = path.resolve(process.cwd(), "store.json");
-export const DOCS_DIR = path.resolve(process.cwd(), "..", "docs");
+export const DOCS_DIR = path.resolve(process.cwd(), "downloaded_docs");
 
 export interface PageData {
   pageNum: number;
@@ -294,12 +294,23 @@ export function findTextLocation(
   phrase: string,
 ): TextLocation[] {
   const page = getPage(filename, pageNum);
-  if (!page || page.textItems.length === 0) return [];
+  if (!page) return [];
+
+  // Drop items without numeric coordinates (older LlamaParse ingests stored
+  // table items with undefined bboxes) — the native searchItems rejects them.
+  const textItems = page.textItems.filter(
+    (t) =>
+      typeof t.x === "number" &&
+      typeof t.y === "number" &&
+      typeof t.width === "number" &&
+      typeof t.height === "number",
+  );
+  if (textItems.length === 0) return [];
 
   // --- Strategy 1: use LiteParse's searchItems for proper cross-line matching ---
   // searchItems handles item concatenation with spatial awareness and returns
   // merged bounding boxes that span multiple text items correctly.
-  const matches = searchItems(page.textItems, { phrase, caseSensitive: false });
+  const matches = searchItems(textItems, { phrase, caseSensitive: false });
   console.log("searchItems matches for query", phrase, matches);
   if (matches.length > 0) {
     return matches.slice(0, 3).map((m) => ({
@@ -312,7 +323,7 @@ export function findTextLocation(
   }
 
   // --- Fallback strategies using the raw concatenated text from textItems ---
-  const { text: rawText, spans } = buildTextMap(page.textItems);
+  const { text: rawText, spans } = buildTextMap(textItems);
 
   // Build a whitespace-flexible regex from a string: each non-whitespace char
   // is escaped and joined with \s* so any amount of whitespace is tolerated.

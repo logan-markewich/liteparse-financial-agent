@@ -21,6 +21,7 @@ export function DocumentManager() {
   const [tab, setTab] = useState<"docs" | "upload" | "edgar">("docs");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [parser, setParser] = useState<"liteparse" | "llamaparse">("liteparse");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // EDGAR state
@@ -51,6 +52,7 @@ export function DocumentManager() {
     setMessage(null);
     const form = new FormData();
     form.append("file", file);
+    form.append("parser", parser);
 
     try {
       const res = await fetch("/api/upload", { method: "POST", body: form });
@@ -75,7 +77,7 @@ export function DocumentManager() {
       if (file?.name.endsWith(".pdf")) handleUpload(file);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [parser],
   );
 
   const searchEdgar = async () => {
@@ -116,6 +118,7 @@ export function DocumentManager() {
           primaryDocument: filing.primaryDocument,
           form: filing.form,
           filingDate: filing.filingDate,
+          parser,
         }),
       });
       const data = await res.json();
@@ -151,13 +154,11 @@ export function DocumentManager() {
     if (selectedFilings.size === 0) return;
     setMessage(null);
     const toDownload = filings.filter((f) => selectedFilings.has(f.accessionNumber));
-    let added = 0;
 
-    // Process sequentially to respect SEC rate limits
-    for (const filing of toDownload) {
-      const result = await downloadFiling(filing);
-      if (result) added++;
-    }
+    // Fire all requests at once — the server serializes SEC downloads to
+    // respect rate limits, but parses filings in parallel.
+    const results = await Promise.all(toDownload.map(downloadFiling));
+    const added = results.filter(Boolean).length;
 
     setSelectedFilings(new Set());
     if (added > 0) {
@@ -178,11 +179,10 @@ export function DocumentManager() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-300"
+        className="rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-300"
       >
-        <span>&#128196;</span>
         {documents.length > 0
-          ? `${documents.length} docs`
+          ? `Documents (${documents.length})`
           : "Manage Documents"}
       </button>
     );
@@ -219,7 +219,7 @@ export function DocumentManager() {
               }}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                 tab === key
-                  ? "border-b-2 border-brand-purple text-brand-purple"
+                  ? "border-b-2 border-zinc-200 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
@@ -230,6 +230,33 @@ export function DocumentManager() {
 
         {/* Content */}
         <div className="max-h-80 overflow-y-auto p-4">
+          {/* Parser selector (applies to Upload + EDGAR ingestion) */}
+          {(tab === "upload" || tab === "edgar") && (
+            <div className="mb-3 flex items-center justify-between rounded-md border border-zinc-800 px-3 py-2">
+              <span className="text-[11px] text-zinc-400">Parser</span>
+              <div className="flex rounded-md border border-zinc-700 p-0.5">
+                {(
+                  [
+                    ["liteparse", "LiteParse"],
+                    ["llamaparse", "LlamaParse"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setParser(key)}
+                    className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      parser === key
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Message banner */}
           {message && (
             <div className="mb-3 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300">
@@ -280,13 +307,12 @@ export function DocumentManager() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-2 text-3xl opacity-30">&#128228;</div>
                   <div className="text-xs text-zinc-400">
                     Drag &amp; drop a PDF here, or
                   </div>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="mt-2 rounded-md bg-brand-purple/20 px-3 py-1.5 text-xs font-medium text-brand-purple transition-colors hover:bg-brand-purple/30"
+                    className="mt-2 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent/85"
                   >
                     Browse Files
                   </button>
@@ -314,7 +340,7 @@ export function DocumentManager() {
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === "Enter" && searchEdgar()}
                   placeholder="Ticker (e.g. MSFT)"
-                  className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-brand-purple"
+                  className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-zinc-500"
                 />
                 <select
                   value={formType}
@@ -328,7 +354,7 @@ export function DocumentManager() {
                 <button
                   onClick={searchEdgar}
                   disabled={edgarLoading || !ticker.trim()}
-                  className="rounded-md bg-brand-purple/20 px-3 py-1.5 text-xs font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
+                  className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent/85 disabled:opacity-50"
                 >
                   {edgarLoading ? "..." : "Search"}
                 </button>
@@ -349,7 +375,7 @@ export function DocumentManager() {
                             setSelectedFilings(new Set(filings.map((f) => f.accessionNumber)));
                           }
                         }}
-                        className="accent-brand-purple"
+                        className="accent-accent"
                       />
                       Select all
                     </label>
@@ -357,7 +383,7 @@ export function DocumentManager() {
                       <button
                         onClick={downloadSelected}
                         disabled={downloadingFilings.size > 0}
-                        className="rounded-md bg-brand-purple/20 px-2 py-1 text-[10px] font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
+                        className="rounded-md bg-accent px-2 py-1 text-[10px] font-medium text-white transition-colors hover:bg-accent/85 disabled:opacity-50"
                       >
                         {downloadingFilings.size > 0
                           ? `Downloading...`
@@ -379,7 +405,7 @@ export function DocumentManager() {
                           checked={selectedFilings.has(f.accessionNumber)}
                           onChange={() => toggleSelection(f.accessionNumber)}
                           disabled={isDownloading || isDownloaded}
-                          className="accent-brand-purple"
+                          className="accent-accent"
                         />
                         <div className="flex-1">
                           <div className="text-xs font-medium">
@@ -398,7 +424,7 @@ export function DocumentManager() {
                           <button
                             onClick={() => downloadFiling(f)}
                             disabled={isDownloading || loading}
-                            className="rounded-md bg-brand-purple/20 px-2 py-1 text-[10px] font-medium text-brand-purple transition-colors hover:bg-brand-purple/30 disabled:opacity-50"
+                            className="rounded-md bg-accent px-2 py-1 text-[10px] font-medium text-white transition-colors hover:bg-accent/85 disabled:opacity-50"
                           >
                             {isDownloading ? "..." : "Add"}
                           </button>

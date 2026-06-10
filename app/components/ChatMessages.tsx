@@ -101,10 +101,8 @@ export function ChatMessages({
       {isLoading &&
         messages.length > 0 &&
         messages[messages.length - 1].role === "user" && (
-          <div className="flex gap-1.5 py-2">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:0ms]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:100ms]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:200ms]" />
+          <div className="animate-pulse py-2 text-xs text-zinc-500">
+            Working&hellip;
           </div>
         )}
 
@@ -125,7 +123,7 @@ function MessageBubble({
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-xl rounded-br-sm border border-brand-purple/30 bg-brand-purple/15 px-3.5 py-2.5 text-sm">
+        <div className="max-w-[80%] rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2.5 text-sm text-zinc-100">
           {message.parts
             .filter((p) => p.type === "text")
             .map((p, i) => (
@@ -223,7 +221,7 @@ function TextPartWithCites({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-purple underline"
+            className="text-accent underline"
           >
             {children}
           </a>
@@ -244,7 +242,7 @@ function TextPartWithCites({
 
 /**
  * A citation badge that verifies itself against the cite API.
- * Shows a verified (brand-colored) or unverified (yellow warning) style.
+ * Shows a verified (accent) or unverified (amber warning) style.
  */
 function CiteBadge({
   cite,
@@ -306,10 +304,10 @@ function CiteBadge({
       onKeyDown={(e) => {
         if (e.key === "Enter") handleFocus();
       }}
-      className={`mx-0.5 inline-flex cursor-pointer items-baseline gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold transition-colors ${
+      className={`mx-0.5 inline-flex cursor-pointer items-baseline gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] transition-colors ${
         isUnverified
-          ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
-          : "border-brand-purple/30 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20"
+          ? "border-amber-500/40 bg-zinc-900 text-amber-400 hover:border-amber-400"
+          : "border-zinc-700 bg-zinc-900 text-accent hover:border-zinc-500"
       }`}
       title={
         isUnverified
@@ -317,9 +315,7 @@ function CiteBadge({
           : `${cite.file} p.${cite.page}`
       }
     >
-      <span className={isUnverified ? "text-yellow-300" : "text-brand-blue"}>
-        {children}
-      </span>
+      <span>{children}</span>
       <span className="text-[9px] text-zinc-500">
         p.{cite.page}{isUnverified && " ?"}
       </span>
@@ -352,11 +348,17 @@ function ToolCallPart({
     state === "input-available" || state === "input-streaming";
 
   return (
-    <div className="my-1 flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 font-mono text-[11px] text-zinc-500">
-      <span className={isRunning ? "animate-spin" : ""}>
-        {isRunning ? "\u2699" : "\u2713"}
-      </span>
-      <span className="text-brand-purple">{toolName}</span>
+    <div
+      className={`my-1 flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 font-mono text-[11px] text-zinc-500 ${
+        isRunning ? "animate-pulse" : ""
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+          isRunning ? "bg-zinc-500" : "bg-emerald-500"
+        }`}
+      />
+      <span className="text-zinc-300">{toolName}</span>
       {argsStr && <span className="truncate">({argsStr})</span>}
     </div>
   );

@@ -51,10 +51,10 @@ export function CitationViewer({
               <button
                 key={`${p.filename}-${p.pageNumber}`}
                 onClick={() => onSelectPage(i)}
-                className={`rounded px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                className={`rounded border px-2 py-0.5 font-mono text-[10px] transition-colors ${
                   i === activePageIdx
-                    ? "bg-brand-purple/20 text-brand-purple"
-                    : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                    ? "border-zinc-500 bg-zinc-800 text-zinc-100"
+                    : "border-transparent bg-zinc-800/50 text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {p.filename.replace(/\.pdf$/, "")} p.{p.pageNumber}
@@ -68,7 +68,6 @@ export function CitationViewer({
       <div className="flex-1 overflow-auto">
         {!activePage ? (
           <div className="flex h-full flex-col items-center justify-center text-zinc-600">
-            <div className="mb-3 text-5xl opacity-30">&#128196;</div>
             <div className="text-sm">Citations will appear here</div>
             <div className="mt-1 text-xs">
               Ask a question and the agent will reference specific pages
@@ -212,10 +211,8 @@ function PageRenderer({
   if (!imageUrl) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="flex gap-1.5">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:0ms]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:100ms]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:200ms]" />
+        <div className="animate-pulse text-xs text-zinc-500">
+          Loading page&hellip;
         </div>
       </div>
     );
