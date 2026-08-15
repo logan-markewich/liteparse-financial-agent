@@ -15,10 +15,10 @@ const provider = process.env.AI_PROVIDER || "anthropic";
 function getModel() {
   switch (provider) {
     case "openai":
-      return openai("gpt-4o");
+      return openai("gpt-5.6-terra");
     case "anthropic":
     default:
-      return anthropic("claude-sonnet-4-20250514");
+      return anthropic("claude-sonnet-5");
   }
 }
 

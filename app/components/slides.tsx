@@ -72,9 +72,9 @@ export const SLIDES: Slide[] = [
               word knows where it lives on the page
             </>,
             <>
-              No vector database, no embeddings — <Hi>parse, store, search</Hi>
+              Built without a vector database, without embeddings — <Hi>the pipeline is parse, store, search</Hi>
             </>,
-            <>Today: ingest pipeline, cited analysis, and how it works inside</>,
+            <>Today we cover: ingest pipeline, cited analysis, and how it works inside</>,
           ]}
         />
       </div>
