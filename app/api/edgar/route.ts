@@ -70,7 +70,7 @@ export async function POST(req: Request) {
   const { ticker, accessionNumber, primaryDocument, form, filingDate, parser } =
     await req.json();
   const parserType: ParserType =
-    parser === "llamaparse" ? "llamaparse" : "liteparse";
+    parser === "llamaparse" || parser === "auto" ? parser : "liteparse";
 
   if (!ticker || !accessionNumber || !primaryDocument) {
     return NextResponse.json(
@@ -158,6 +158,8 @@ async function saveAndIngest(
     return NextResponse.json({
       filename: doc.filename,
       pageCount: doc.pages.length,
+      parser: doc.parser,
+      upgradedCount: doc.upgradedPages?.length,
     });
   } catch (e) {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);

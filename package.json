@@ -11,7 +11,7 @@
     "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/openai": "^3.0.52",
     "@ai-sdk/react": "^3.0.161",
-    "@llamaindex/liteparse": "^2.0.7",
+    "@llamaindex/liteparse": "^2.13.0",
     "@llamaindex/llama-cloud": "^2",
     "ai": "^6.0.159",
     "next": "^15",

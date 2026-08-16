@@ -42,6 +42,8 @@ Your job is to help users analyze these financial documents by:
 
 When answering questions:
 - Always search the documents first — don't rely on your training data for specific numbers
+- search_documents takes a LIST of queries: pass 1-4 short, related phrases in one call (e.g. ["total net sales", "net sales by segment", "sales"]) rather than one long sentence. Each query must appear VERBATIM in the document, so a full question finds nothing — cover different wordings by adding more queries. Pages matching several of your queries rank first
+- If a search comes back empty, retry with shorter or differently-worded phrases before concluding the information isn't there
 - Cite your sources with the document filename and page number
 - When comparing across periods, clearly label which filing each number comes from
 - If you can't find information, say so rather than guessing

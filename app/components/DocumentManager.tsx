@@ -21,7 +21,10 @@ export function DocumentManager() {
   const [tab, setTab] = useState<"docs" | "upload" | "edgar">("docs");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [parser, setParser] = useState<"liteparse" | "llamaparse">("liteparse");
+  const [parser, setParser] = useState<"liteparse" | "llamaparse" | "auto">(
+    "liteparse",
+  );
+  const [autoAvailable, setAutoAvailable] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // EDGAR state
@@ -38,6 +41,7 @@ export function DocumentManager() {
       const res = await fetch("/api/documents");
       const data = await res.json();
       setDocuments(data.documents || []);
+      setAutoAvailable(!!data.autoAvailable);
     } catch {
       // ignore
     }
@@ -58,7 +62,13 @@ export function DocumentManager() {
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
       if (res.ok) {
-        setMessage(`Added ${data.filename} (${data.pageCount} pages)`);
+        const upgraded =
+          data.parser === "auto"
+            ? `, ${data.upgradedCount ?? 0} upgraded via LlamaParse`
+            : "";
+        setMessage(
+          `Added ${data.filename} (${data.pageCount} pages${upgraded})`,
+        );
         fetchDocuments();
       } else {
         setMessage(data.error || "Upload failed");
@@ -237,13 +247,24 @@ export function DocumentManager() {
               <div className="flex rounded-md border border-zinc-700 p-0.5">
                 {(
                   [
-                    ["liteparse", "LiteParse"],
-                    ["llamaparse", "LlamaParse"],
+                    ["liteparse", "LiteParse", "Local parsing, no API calls"],
+                    ["llamaparse", "LlamaParse", "Every page via LlamaCloud"],
+                    // Auto needs a LlamaCloud key to upgrade the hard pages.
+                    ...(autoAvailable
+                      ? ([
+                          [
+                            "auto",
+                            "Auto",
+                            "LiteParse everywhere, LlamaParse only on pages with tables or scanned content",
+                          ],
+                        ] as const)
+                      : []),
                   ] as const
-                ).map(([key, label]) => (
+                ).map(([key, label, title]) => (
                   <button
                     key={key}
                     onClick={() => setParser(key)}
+                    title={title}
                     className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
                       parser === key
                         ? "bg-zinc-700 text-zinc-100"

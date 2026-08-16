@@ -4,11 +4,15 @@ import path from "path";
 import { addDocument, DOCS_DIR } from "@/lib/store";
 import { ingestPdf, type ParserType } from "@/lib/ingest";
 
+function toParserType(value: FormDataEntryValue | null): ParserType {
+  if (value === "llamaparse" || value === "auto") return value;
+  return "liteparse";
+}
+
 export async function POST(req: Request) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  const parser: ParserType =
-    formData.get("parser") === "llamaparse" ? "llamaparse" : "liteparse";
+  const parser = toParserType(formData.get("parser"));
 
   if (!file || !file.name.endsWith(".pdf")) {
     return NextResponse.json(
@@ -33,6 +37,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       filename: doc.filename,
       pageCount: doc.pages.length,
+      parser: doc.parser,
+      upgradedCount: doc.upgradedPages?.length,
     });
   } catch (e) {
     // Clean up on failure

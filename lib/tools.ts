@@ -19,13 +19,15 @@ export const tools = {
 
   search_documents: tool({
     description:
-      "Search across all financial documents for pages containing specific terms or patterns. Returns relevant page snippets with document and page references. Supports plain keyword search (default) or regex patterns when use_regex is true. Examples: 'revenue' (keyword), 'net income.*\\d+' (regex to find income followed by numbers), '\\$[\\d,]+\\s*million' (regex for dollar amounts).",
+      "Search across all financial documents for pages containing specific phrases or patterns. Takes a LIST of 1-4 short, related queries, searches each one, and merges the hits — pages matching several of your queries rank first. Returns page snippets with document and page references, plus which of your queries matched each page. Each query is matched as an EXACT PHRASE (case-insensitive, tolerant of line breaks), so the words must appear together and in order — ['total net sales', 'net sales by segment', 'sales'] finds the segment tables, while ['what were total net sales by segment for iPhone in fiscal 2024'] matches nothing at all. Cover synonyms and wordings by adding more queries, not by lengthening one. Supports regex patterns when use_regex is true. Examples: ['revenue'] (phrase), ['net income.*\\d+'] (regex to find income followed by numbers), ['\\$[\\d,]+\\s*million'] (regex for dollar amounts).",
     inputSchema: zodSchema(
       z.object({
-        query: z
-          .string()
+        queries: z
+          .array(z.string())
+          .min(1)
+          .max(4)
           .describe(
-            "Search query — keywords (space-separated) or a regex pattern if use_regex is true",
+            "1-4 related search queries, each a short exact phrase (roughly 1-4 words) — or a regex pattern if use_regex is true. Do NOT pass full sentences or questions: the whole phrase must appear verbatim in the document, so a sentence will simply find nothing. Use several short phrasings instead.",
           ),
         max_results: z
           .number()
@@ -47,10 +49,18 @@ export const tools = {
           ),
       }),
     ),
-    execute: async ({ query, max_results, use_regex, file_glob }) => {
-      const results = searchDocuments(query, max_results, use_regex, file_glob);
+    execute: async ({ queries, max_results, use_regex, file_glob }) => {
+      const results = searchDocuments(
+        queries,
+        max_results,
+        use_regex,
+        file_glob,
+      );
       if (results.length === 0) {
-        return { message: "No results found for: " + query, results: [] };
+        return {
+          message: `No results found for: ${queries.join(", ")}`,
+          results: [],
+        };
       }
       return { results };
     },
